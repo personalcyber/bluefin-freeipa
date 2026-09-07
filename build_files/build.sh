@@ -852,3 +852,35 @@ install -Dm755 /ctx/firefox-flatpak-policy-install.sh \
 install -Dm644 /ctx/firefox-flatpak-policy.service \
     /usr/lib/systemd/system/firefox-flatpak-policy.service
 systemctl enable firefox-flatpak-policy.service
+
+### Seed blank document templates into every user's Templates folder
+#
+# GNOME Files' "New Document" submenu is populated entirely from the
+# user's XDG Templates directory: with that directory empty (the default),
+# the submenu doesn't appear at all, and there's no way to start a blank
+# document from the file manager. This ships five blank templates - text,
+# Markdown, Word, Excel and PowerPoint - so it does.
+#
+# The .docx/.xlsx/.pptx files are generated here at build time from XML
+# spelled out in make-document-templates.py, rather than committed to this
+# repo as binaries: an OOXML file is a ZIP container, so a committed one
+# couldn't be reviewed in a diff. Generation is byte-reproducible (fixed
+# ZIP timestamps), so an unchanged template produces an identical file
+# across this image's daily rebuilds and bootc sees no /usr diff for it.
+#
+# Getting the files into a user's home is a runtime step, not an /etc/skel
+# one: skel only reaches accounts created by this image's own tooling,
+# while FreeIPA domain accounts - the ones this image exists for - get
+# their homes from oddjob-mkhomedir at first login, on whatever machine
+# that happens to be. user-templates-install.service is a per-user unit
+# run at graphical login, covering local and domain accounts identically.
+# See user-templates-install.sh for the per-user seeding stamp that keeps
+# deleted templates deleted.
+python3 /ctx/make-document-templates.py /usr/share/bluefin-freeipa/templates
+chmod 755 /usr/share/bluefin-freeipa/templates
+
+install -Dm755 /ctx/user-templates-install.sh \
+    /usr/libexec/user-templates-install.sh
+install -Dm644 /ctx/user-templates-install.service \
+    /usr/lib/systemd/user/user-templates-install.service
+systemctl --global enable user-templates-install.service

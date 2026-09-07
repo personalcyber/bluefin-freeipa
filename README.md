@@ -151,6 +151,7 @@ This image is built on top of `ghcr.io/ublue-os/bluefin:stable` and makes the fo
 | `podman.socket` | Inherited from the Bluefin base; retained for rootless container support. |
 | `homebrew-install.service` | Installs Homebrew on first boot with network, then re-normalizes its shared prefix's group/permissions on every subsequent boot (see below). |
 | `tailscale-set-operator.service` | Per-user unit; sets the currently logging-in user as the Tailscale operator at every graphical login, so trayscale works without a manual `sudo` step (see "Tailscale/Trayscale Operator" above). |
+| `user-templates-install.service` | Per-user unit; seeds this image's blank document templates into the logging-in user's Templates folder, populating GNOME Files' "New Document" menu (see "Document Templates" below). |
 | `thermald.service` | Intel thermal daemon (see "Packages Added" above). |
 
 ## Homebrew
@@ -200,6 +201,41 @@ In both cases, the user must log out and back in (or run `newgrp brew`) for the 
 > Users not in the `brew` group can still run any package that is already installed. Only writing new packages to the shared prefix requires group membership.
 
 New packages you install stay writable for every `brew` group member afterward too — the prefix carries a default ACL (set up by `homebrew-install.service`) granting the `brew` group write access to anything created under it later, so a `brew install` you run isn't left owned by a group but with permission bits your own umask happened to strip.
+
+## Document Templates
+
+GNOME Files' right-click **New Document** submenu is built entirely from whatever is in your XDG Templates folder (`~/Templates` on an English system). Fedora and Bluefin both leave that folder empty, so on a stock install the submenu doesn't appear at all.
+
+This image ships five blank templates and seeds them into each user's Templates folder at login:
+
+| Template | Opens as |
+|---|---|
+| `Text File.txt` | Plain text |
+| `Markdown Document.md` | Markdown |
+| `Word Document.docx` | Word document (US Letter, 1in margins) |
+| `Excel Workbook.xlsx` | Spreadsheet with one empty `Sheet1` |
+| `PowerPoint Presentation.pptx` | Presentation with one blank 16:9 slide |
+
+All five are genuinely blank — the Office-format ones are minimal but fully valid OOXML packages, not zero-byte files with a misleading extension, so they open cleanly in LibreOffice and in Microsoft Office/Microsoft 365 alike.
+
+### How they get there
+
+Seeding is done by `user-templates-install.service`, a **per-user** `systemd` unit that runs at every graphical login and copies from `/usr/share/bluefin-freeipa/templates/`. It's done at login rather than via `/etc/skel` because `/etc/skel` only reaches accounts whose home directory is created by this machine's own account tooling — FreeIPA domain users get their home directories from `oddjob-mkhomedir` at first login on whichever host they sign into, potentially long after the image was deployed. Running per-login covers local and domain accounts identically.
+
+The unit is deliberately unobtrusive about your own changes:
+
+- **Templates you delete stay deleted.** Each template is seeded once per user and recorded in `~/.local/share/bluefin-freeipa/templates-seeded`; already-recorded names are never looked at again, so logging back in doesn't resurrect anything you removed.
+- **Your own files are never overwritten.** A same-named file you put in the folder yourself is left exactly as-is.
+- **Localized folder names work.** The target folder is resolved with `xdg-user-dir TEMPLATES`, so a German desktop gets `~/Vorlagen`, not a stray English `~/Templates`.
+- **Opting out is respected.** If you've disabled the templates folder entirely (`XDG_TEMPLATES_DIR="$HOME"` in `~/.config/user-dirs.dirs`), the unit exits without writing anything.
+
+To start over from the shipped set, delete the stamp file and log back in:
+
+```bash
+rm ~/.local/share/bluefin-freeipa/templates-seeded
+```
+
+Adding your own templates needs nothing special — any file you drop into the folder shows up in the **New Document** menu, and this image won't touch it.
 
 ## /etc Directory Skeleton
 

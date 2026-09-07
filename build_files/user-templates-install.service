@@ -1,0 +1,19 @@
+[Unit]
+Description=Seed blank document templates into this user's Templates folder
+Documentation=file:///usr/libexec/user-templates-install.sh
+# Nothing to do if a future base image drops the templates directory.
+ConditionPathIsDirectory=/usr/share/bluefin-freeipa/templates
+# xdg-user-dirs-update writes ~/.config/user-dirs.dirs (creating the
+# localized Templates directory name on a brand-new account). Ordering
+# after it means the script resolves the final directory rather than the
+# pre-localization default. Harmless if that unit isn't present: After=
+# on an inactive unit imposes no ordering and no dependency.
+After=xdg-user-dirs-update.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/user-templates-install.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical-session.target
