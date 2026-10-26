@@ -352,9 +352,13 @@ systemctl reboot
 > [!NOTE]
 > If you are switching from a non-bootc system or a completely different distribution, a fresh install from the [installer ISO](#building-disk-images-locally) is the more reliable path.
 
+## PCI and Storage Power Management Disabled
+
+Some devices fail to come back from a low-power state (e.g. storage that cannot be remounted after resume), so the image disables PCI and storage power management with kernel arguments in `/usr/lib/bootc/kargs.d/10-disable-pm.toml`. bootc applies these on install and on every `bootc upgrade`, so they persist without any `rpm-ostree kargs` step: `pcie_aspm=off`, `pcie_port_pm=off`, `nvme_core.default_ps_max_latency_us=0`, `ahci.mobile_lpm_policy=1`, `libata.force=nolpm`, `usbcore.autosuspend=-1`. Verify with `cat /proc/cmdline`. The former `powertop --auto-tune` boot unit was removed because it re-enabled runtime PM on every boot. Expect higher idle power draw on battery.
+
 ## 12th-Gen Intel Laptop Power Management and Graphics
 
-This image's primary target is a 12th-gen Intel ("Alder Lake") Lenovo laptop, and ships three pieces tuned for that hybrid P-core/E-core CPU and its Xe-LP integrated GPU, layered on top of the hardware-agnostic PowerTOP auto-tune (see above):
+This image's primary target is a 12th-gen Intel ("Alder Lake") Lenovo laptop, and ships three pieces tuned for that hybrid P-core/E-core CPU and its Xe-LP integrated GPU, layered on top of the hardware-agnostic PCI/storage power-management kernel arguments (see below):
 
 - **`thermald`** — Intel's own thermal daemon, enabled at boot. It reads the platform's DPTF thermal tables and throttles proactively, ahead of the kernel's own coarser emergency thermal cutoffs, which otherwise tend to show up as abrupt frequency cliffs under sustained load on hybrid-core CPUs.
 - **`i915` GuC/HuC submission + framebuffer compression** — `/etc/modprobe.d/i915-power.conf` sets `enable_guc=3` (GPU-side command scheduling plus HuC firmware for hardware video encode/decode) and `enable_fbc=1` (framebuffer compression, cutting display-memory bandwidth whenever most of the screen is static). Panel Self Refresh (PSR) is deliberately left at the kernel's own per-platform default rather than forced on — it saves more power than FBC alone, but its panel-corruption bugs are panel-specific, so it isn't safe to force on generically across "whatever 12th-gen Lenovo laptop this image happens to be running on."
