@@ -43,6 +43,10 @@ The `Containerfile`'s final `RUN bootc container lint` must pass with zero warni
 - **`/tmp` and `/run` are tmpfs-mounted** in the `Containerfile`'s `RUN` step (`nonempty-run-tmp` check). Package scriptlets (certmonger, dnf, selinux-policy) drop runtime-only scratch files under `/run` as a side effect of installing; without a dedicated mount that content has nowhere to go but the image layer, since there's no running init in a `buildah` step to treat `/run` as ephemeral. Nothing in `build_files/` reads `/run` afterward, so nothing depends on that content surviving.
 - **`var-state.conf` declares `/var` state via `systemd-tmpfiles`** instead of `build.sh` creating those directories imperatively (`var-tmpfiles` check). It covers two different kinds of path: sssd's own runtime/cache dirs (`/var/lib/sss/db`, `/var/lib/sss/pipes/private`, `/var/lib/sss/keytabs`, `/var/log/sssd`) — genuinely not shipped in the image at all now; `systemd-tmpfiles-setup.service` creates them fresh on first real boot, before sssd starts — and certmonger/freeipa-client's RPM-owned state dirs (`/var/lib/certmonger/{cas,local,requests}`, `/var/lib/ipa-client/{pki,sysrestore}`), which *are* baked in regardless (their packages create them via plain `%install mkdir -p`, no upstream tmpfiles.d) but are declared here anyway so lint recognizes them as intentional. `/var/lib/dnf` (repo metadata cache, lock file, countme markers) gets a build-time-only cache mount in the `Containerfile` instead, since it has no purpose on a deployed bootc system at all.
 
+### PCI/Storage Power Management Kargs
+
+`build_files/10-disable-pm.toml` is installed to `/usr/lib/bootc/kargs.d/`; bootc applies it on install and every upgrade (no per-machine `rpm-ostree kargs`). It turns off PCIe ASPM and port PM, NVMe APST, SATA/AHCI link PM and USB autosuspend because some devices fail to remount from low-power states. `powertop-autotune.service` was removed since `powertop --auto-tune` re-enabled runtime PM at every boot and would undo this.
+
 ### Key Files to Modify
 
 - **Add packages or system configuration**: Edit `build_files/build.sh`

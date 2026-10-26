@@ -26,8 +26,8 @@ set -ouex pipefail
 # way a hardcoded package name would; zstd is the compressor the
 # initramfs regeneration below asks dracut to use, listed explicitly
 # rather than assumed present.
-# powertop provides the --auto-tune power-saving profile applied at boot
-# by powertop-autotune.service (see below).
+# powertop is kept for manual power diagnostics (`powertop` / `--auto-tune`);
+# nothing applies it automatically (see the kargs.d section below).
 # thermald is Intel's own thermal daemon; on 12th-gen ("Alder Lake") hybrid
 # P-core/E-core laptop hardware — this image's primary target, see
 # CLAUDE.md — it reads the platform's Intel DPTF thermal tables and
@@ -408,27 +408,23 @@ install -Dm644 /ctx/95-hibernation-resume.conf \
 install -Dm644 /ctx/96-mmc-storage.conf \
     /usr/lib/dracut/dracut.conf.d/96-mmc-storage.conf
 
-### Apply PowerTOP's power-saving auto-tune profile at every boot
+### Disable PCI and storage power management via kernel arguments
 #
-# `powertop --auto-tune` applies powertop's recommended runtime power-saving
-# settings (e.g. USB/PCI/audio autosuspend, SATA link power management).
-# These settings live in volatile kernel/sysfs state, not on disk, so they
-# don't persist across reboots on their own and have to be re-applied every
-# boot rather than once at image build time. Type=oneshot + RemainAfterExit
-# runs it once per boot and reports the unit as active afterward, the same
-# shape used elsewhere in this image for a run-once-at-boot action (see
-# hide-local-admins-gdm.service, which instead runs every boot for a
-# different reason — no analogous "state resets on reboot" need here).
-install -Dm644 /ctx/powertop-autotune.service \
-    /usr/lib/systemd/system/powertop-autotune.service
-systemctl enable powertop-autotune.service
+# Some devices fail to come back from a low-power state, so PCIe ASPM/port
+# runtime PM, NVMe APST, SATA link PM and USB autosuspend are turned off.
+# bootc applies /usr/lib/bootc/kargs.d/*.toml on install and on every
+# upgrade, so this persists across updates. This replaces the former
+# `powertop --auto-tune` boot unit, which re-enabled runtime PM on every PCI
+# device and SATA link at each boot and would have undone these arguments.
+install -Dm644 /ctx/10-disable-pm.toml \
+    /usr/lib/bootc/kargs.d/10-disable-pm.toml
 
 ### 12th-gen Intel ("Alder Lake") laptop power management and graphics
 #
 # This image's primary target is a 12th-gen Intel Lenovo laptop (see
 # CLAUDE.md), so the pieces below are tuned for that hybrid P-core/E-core
 # CPU and its Xe-LP integrated GPU specifically, on top of the
-# hardware-agnostic PowerTOP auto-tune above.
+# kernel-argument PM settings above.
 
 # thermald: Intel's own thermal daemon, reading DPTF thermal tables to
 # throttle proactively rather than relying solely on the kernel's coarser

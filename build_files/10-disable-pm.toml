@@ -1,0 +1,20 @@
+# Kernel arguments applied to every deployment of this image. bootc reads
+# /usr/lib/bootc/kargs.d/*.toml on install and on every upgrade, so these
+# persist across updates without any per-machine `rpm-ostree kargs` step.
+#
+# Disables PCI and storage power management: some devices fail to come back
+# from a low-power state (the remount after resume hangs or errors).
+kargs = [
+    # PCIe Active State Power Management (link L0s/L1) off for all links.
+    "pcie_aspm=off",
+    # No power management (D3 runtime suspend) on PCIe root/downstream ports.
+    "pcie_port_pm=off",
+    # NVMe: disable APST so the drive never drops into a non-operational state.
+    "nvme_core.default_ps_max_latency_us=0",
+    # SATA/AHCI: pin link power management to max_performance (1), including
+    # on mobile chipsets that otherwise default to a low-power policy.
+    "ahci.mobile_lpm_policy=1",
+    "libata.force=nolpm",
+    # USB mass storage: never autosuspend.
+    "usbcore.autosuspend=-1",
+]
