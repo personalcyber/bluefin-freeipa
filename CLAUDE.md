@@ -119,6 +119,10 @@ This split exists because ostree only seeds `/var` from the image on a machine's
 
 The upstream Bluefin image ships `/etc/hostname` with a default value. To prevent bootc from ever merging that default over a locally configured hostname (which would break Kerberos), this image ships `/etc/hostname` as an empty file via a `COPY` instruction. `RUN rm -f /etc/hostname` does not work because the OCI build runtime bind-mounts `/etc/hostname` into every `RUN` container, causing "Device or resource busy". `COPY` writes directly to the image layer filesystem outside of a running container and is not subject to the bind-mount.
 
+### Claude Code CLI (not Claude Desktop)
+
+`build.sh` installs `claude-code` from Anthropic's signed dnf repo (`https://downloads.claude.ai/claude-code/rpm/stable`, key verified by dnf at install) in the main package transaction, then deletes the `.repo` file so the deployed system doesn't carry a repo nothing uses (bootc updates via image, not dnf). The Claude **Desktop** app is deliberately not installed: per https://code.claude.com/docs/en/desktop-linux its Linux beta supports only Debian-based distributions (apt/.deb), and the docs name the CLI as the Fedora/RHEL alternative. Revisit when Fedora/RPM desktop support ships.
+
 ### Image Signing
 
 The CI pipeline signs images with [Cosign](https://github.com/sigstore/cosign). Requires a `SIGNING_SECRET` repository secret containing the private key (generated with `COSIGN_PASSWORD="" cosign generate-key-pair`). The public key `cosign.pub` is committed to the repo. Never commit `cosign.key`.

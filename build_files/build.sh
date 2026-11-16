@@ -54,7 +54,24 @@ set -ouex pipefail
 # erases packages that actually conflict, so it's safe to apply to the
 # whole transaction rather than isolating it to just that one package.
 _fedora_ver="$(rpm -E %fedora)"
+
+# Claude Code CLI comes from Anthropic's signed dnf repository (stable
+# channel). The Claude Desktop app is not installed: its Linux beta only
+# supports Debian-based distributions (apt/.deb) and documents the CLI as
+# the Fedora/RHEL alternative. Packages are never updated via dnf on a
+# deployed bootc system, so the repo file is removed again right after the
+# install (below) - updates arrive through image rebuilds.
+cat > /etc/yum.repos.d/claude-code.repo << 'REPOEOF'
+[claude-code]
+name=Claude Code
+baseurl=https://downloads.claude.ai/claude-code/rpm/stable
+enabled=1
+gpgcheck=1
+gpgkey=https://downloads.claude.ai/keys/claude-code.asc
+REPOEOF
+
 dnf5 install -y --allowerasing \
+    claude-code \
     freeipa-client \
     oddjob \
     oddjob-mkhomedir \
@@ -68,6 +85,8 @@ dnf5 install -y --allowerasing \
     thermald \
     libva-intel-media-driver \
     zstd
+
+rm -f /etc/yum.repos.d/claude-code.repo
 
 ### Preserve FreeIPA join state across bootc updates
 #
