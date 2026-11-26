@@ -899,3 +899,15 @@ install -Dm755 /ctx/user-templates-install.sh \
 install -Dm644 /ctx/user-templates-install.service \
     /usr/lib/systemd/user/user-templates-install.service
 systemctl --global enable user-templates-install.service
+
+# ---------------------------------------------------------------------------
+# os-release ID for bootc-image-builder
+# ---------------------------------------------------------------------------
+# bootc-image-builder derives its package-repository lookup key from the
+# image's os-release as "<ID>-<VERSION_ID>". Bluefin ships ID=bluefin, so
+# BIB fails with: requested repository not found: for distribution
+# "bluefin-45". Reporting ID=fedora lets BIB resolve its Fedora repo
+# definitions; the Bluefin identity stays in NAME/PRETTY_NAME/VARIANT_ID.
+# /etc/os-release is a symlink to this file, so one edit covers both.
+sed -i 's/^ID=.*/ID=fedora/' /usr/lib/os-release
+grep -q '^ID=fedora$' /usr/lib/os-release
